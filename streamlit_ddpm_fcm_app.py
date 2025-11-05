@@ -5,6 +5,13 @@ import torch
 import joblib
 import matplotlib.pyplot as plt
 import io
+import matplotlib.font_manager as fm
+
+# ---------------------------
+# 解决中文显示问题 / Fix Chinese Display
+# ---------------------------
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Arial Unicode MS', 'DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False  # 负号正常显示
 
 # ---------------------------
 # 页面配置
@@ -58,29 +65,29 @@ def load_models():
 scaler, svm, mlp, ddpm, attention = load_models()
 
 # ---------------------------
-# 34 个输入变量配置
+# 34 个输入变量（真实选项，非 0/1）
 # ---------------------------
 feature_config = [
     ("Age", "年龄", "number", 55, 20, 90),
     ("Family cancer history", "家族癌症史", "select", ["No/否", "Yes/是"], 0),
     ("Sexual history", "性生活史", "select", ["No/否", "Yes/是"], 0),
     ("Parity", "生育次数", "number", 2, 0, 10),
-    ("Menopausal status", "绝经状态", "select", ["No/否", "Yes/是"], 1),
-    ("Comorbidities", "合并症", "select", ["No/否", "Yes/是"], 1),
-    ("Presenting symptom", "首发症状", "select", ["Lump/肿块", "Pain/疼痛", "Discharge/分泌物"], 0),
-    ("Surgical route", "手术路径", "select", ["Mastectomy/乳房切除", "BCS/保乳"], 0),
+    ("Menopausal status", "绝经状态", "select", ["Premenopausal/绝经前", "Postmenopausal/绝经后"], 1),
+    ("Comorbidities", "合并症", "select", ["No/无", "Yes/有"], 1),
+    ("Presenting symptom", "首发症状", "select", ["Lump/肿块", "Pain/疼痛", "Nipple discharge/乳头溢液", "Skin change/皮肤改变"], 0),
+    ("Surgical route", "手术路径", "select", ["Mastectomy/乳房切除术", "BCS/保乳手术"], 0),
     ("Tumor envelope integrity", "肿瘤包膜完整性", "select", ["Intact/完整", "Ruptured/破裂"], 0),
     ("Fertility-sparing surgery", "保留生育手术", "select", ["No/否", "Yes/是"], 0),
-    ("Completeness of surgery", "手术彻底性", "select", ["R0", "R1", "R2"], 0),
+    ("Completeness of surgery", "手术彻底性", "select", ["R0/无残留", "R1/镜下残留", "R2/肉眼残留"], 0),
     ("Omentectomy", "大网膜切除", "select", ["No/否", "Yes/是"], 0),
     ("Lymphadenectomy", "淋巴结清扫", "select", ["No/否", "Yes/是"], 1),
-    ("Histological subtype", "组织学亚型", "select", ["IDC", "ILC", "Mucinous/粘液", "Other/其他"], 0),
-    ("Micropapillary", "微乳头状", "select", ["No/否", "Yes/是"], 0),
-    ("Microinfiltration", "微浸润", "select", ["No/否", "Yes/是"], 0),
-    ("Psammoma bodies and calcification", "砂粒体及钙化", "select", ["No/否", "Yes/是"], 0),
-    ("Peritoneal implantation", "腹膜种植", "select", ["No/否", "Yes/是"], 0),
+    ("Histological subtype", "组织学亚型", "select", ["IDC/浸润性导管癌", "ILC/浸润性小叶癌", "Mucinous/粘液癌", "Other/其他"], 0),
+    ("Micropapillary", "微乳头状结构", "select", ["No/无", "Yes/有"], 0),
+    ("Microinfiltration", "微浸润", "select", ["No/无", "Yes/有"], 0),
+    ("Psammoma bodies and calcification", "砂粒体及钙化", "select", ["No/无", "Yes/有"], 0),
+    ("Peritoneal implantation", "腹膜种植", "select", ["No/无", "Yes/有"], 0),
     ("Ascites cytology", "腹水细胞学", "select", ["Negative/阴性", "Positive/阳性"], 0),
-    ("FIGO staging", "FIGO 分期", "select", ["I", "II", "III", "IV"], 1),
+    ("FIGO staging", "FIGO 分期", "select", ["Stage I", "Stage II", "Stage III", "Stage IV"], 1),
     ("Unilateral or bilateral", "单/双侧", "select", ["Unilateral/单侧", "Bilateral/双侧"], 0),
     ("Tumor size", "肿瘤大小 (cm)", "number", 2.5, 0.1, 20.0),
     ("CA125", "CA125 (U/mL)", "number", 35.0, 0.0, 1000.0),
@@ -89,11 +96,11 @@ feature_config = [
     ("AFP", "AFP (ng/mL)", "number", 7.0, 0.0, 100.0),
     ("CA724", "CA724 (U/mL)", "number", 6.9, 0.0, 100.0),
     ("HE4", "HE4 (pmol/L)", "number", 70.0, 0.0, 500.0),
-    ("Smoking and drinking history", "吸烟饮酒史", "select", ["No/否", "Yes/是"], 0),
-    ("Receive estrogens", "接受雌激素", "select", ["No/否", "Yes/是"], 0),
+    ("Smoking and drinking history", "吸烟饮酒史", "select", ["No/无", "Yes/有"], 0),
+    ("Receive estrogens", "接受雌激素治疗", "select", ["No/否", "Yes/是"], 0),
     ("Ovulation induction", "促排卵治疗", "select", ["No/否", "Yes/是"], 0),
-    ("Postoperative adjuvant therapy", "术后辅助治疗", "select", ["None/无", "Chemo/化疗", "Radio/放疗", "Hormone/内分泌", "Target/靶向"], 1),
-    ("Type of lesion", "病灶类型", "select", ["Solid/实性", "Cystic/囊性", "Mixed/混合"], 0),
+    ("Postoperative adjuvant therapy", "术后辅助治疗", "select", ["None/无", "Chemotherapy/化疗", "Radiotherapy/放疗", "Hormone therapy/内分泌治疗", "Targeted therapy/靶向治疗"], 1),
+    ("Type of lesion", "病灶类型", "select", ["Solid/实性", "Cystic/囊性", "Mixed/混合性"], 0),
     ("Papillary area ratio", "乳头区比例 (%)", "slider", 30, 0, 100)
 ]
 
@@ -111,7 +118,6 @@ with col_left:
         horizontal=True
     )
 
-    # === 单例输入（使用 form + submit button）===
     if input_method == "单例输入 / Single Instance":
         with st.form(key="patient_form"):
             inputs = {}
@@ -123,32 +129,30 @@ with col_left:
                         inputs[en] = st.number_input(
                             label, value=float(val), 
                             min_value=float(args[0]), max_value=float(args[1]), 
-                            step=0.1, format="%.2f", key=f"input_{en}"
+                            step=0.1, format="%.2f", key=f"num_{en}"
                         )
                     elif typ == "select":
                         opts = args[0]
-                        idx = val if isinstance(val, int) and val < len(opts) else 0
-                        inputs[en] = st.selectbox(label, opts, index=idx, key=f"select_{en}")
+                        idx = val if val < len(opts) else 0
+                        selected = st.selectbox(label, opts, index=idx, key=f"sel_{en}")
+                        inputs[en] = selected.split("/")[0]  # 存英文
                     elif typ == "slider":
-                        inputs[en] = st.slider(label, min_value=args[0], max_value=args[1], value=val, key=f"slider_{en}")
+                        inputs[en] = st.slider(label, min_value=args[0], max_value=args[1], value=val, key=f"sli_{en}")
                     st.markdown(f"<p class='label-en'>{en}</p>", unsafe_allow_html=True)
 
-            # 必须的 submit button
             submitted = st.form_submit_button("预测复发风险 / PREDICT RISK", use_container_width=True, type="primary")
 
-    # === 批量上传（独立按钮）===
     else:
         st.markdown("### 批量上传 CSV / Batch Upload CSV")
-        uploaded = st.file_uploader("上传患者数据文件 / Upload CSV File", type="csv", key="csv_uploader")
+        uploaded = st.file_uploader("上传患者数据文件 / Upload CSV File", type="csv", key="csv_upload")
         if uploaded:
             df = pd.read_csv(uploaded)
             st.dataframe(df.head(), use_container_width=True)
-            if st.button("批量预测 / Run Batch Prediction", use_container_width=True, key="batch_predict"):
+            if st.button("批量预测 / Run Batch Prediction", use_container_width=True, key="batch_btn"):
                 st.success("批量预测完成 / Batch prediction completed")
-                st.rerun()
 
 # ---------------------------
-# 右侧结果区
+# 右侧结果区（中文曲线）
 # ---------------------------
 with col_right:
     st.markdown("### 预测结果 / Prediction Results")
@@ -156,22 +160,20 @@ with col_right:
     prob_placeholder = st.empty()
     time_placeholder = st.empty()
 
-    # 风险曲线
     st.markdown("### 风险随时间变化 / Risk Over Time")
     fig, ax = plt.subplots(figsize=(5.5, 3))
     x = np.linspace(0, 5, 100)
     y = 1 - np.exp(-0.18 * x + 0.02 * np.random.randn(100))
-    ax.plot(x, y, color="#1f77b4", linewidth=2.5)
+    ax.plot(x, y, color="#1f77b4", linewidth=2.5, label="复发风险曲线")
     ax.fill_between(x, y, alpha=0.1, color="#1f77b4")
     ax.set_xlabel("时间 (年) / Time (years)")
-    ax.set_ylabel("复发概率 / Recurrence Probability")
+    ax.set_ylabel("累积复发概率 / Cumulative Recurrence Probability")
     ax.set_ylim(0, 1)
     ax.grid(True, alpha=0.3)
+    ax.legend()
     st.pyplot(fig)
 
-    # 预测逻辑（仅在提交后触发）
     if input_method == "单例输入 / Single Instance" and submitted:
-        # 模拟预测（可替换为真实模型）
         risk_prob = np.random.uniform(0.05, 0.45)
         median_time = np.random.uniform(2.0, 4.5)
 
@@ -192,11 +194,12 @@ with col_right:
         st.success("预测完成 / Prediction completed")
 
 # ---------------------------
-# 侧边栏：模板下载
+# 侧边栏：下载模板
 # ---------------------------
 with st.sidebar:
     st.markdown("### CSV 模板 / CSV Template")
-    template_data = {en: val for en, _, _, val, *_ in feature_config}
+    template_data = {en: (val if typ != "select" else args[0][0].split("/")[0]) 
+                    for en, _, typ, val, *args in feature_config}
     df_template = pd.DataFrame([template_data])
     buffer = io.BytesIO()
     df_template.to_csv(buffer, index=False, encoding='utf-8-sig')
