@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import io
 
 # ---------------------------
-# 修复中文显示
+# 中文显示
 # ---------------------------
 plt.rcParams['font.sans-serif'] = ['SimHei', 'Arial Unicode MS', 'DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
@@ -18,7 +18,7 @@ plt.rcParams['axes.unicode_minus'] = False
 st.set_page_config(page_title="DDPM-FCM 乳腺癌复发风险预测", layout="wide")
 
 # ---------------------------
-# 美化 CSS
+# CSS
 # ---------------------------
 st.markdown("""
 <style>
@@ -58,7 +58,7 @@ def load_models():
 scaler, svm, mlp, ddpm, attention = load_models()
 
 # ---------------------------
-# 34 个输入变量（真实选项）
+# 34 个输入变量（索引为 int）
 # ---------------------------
 feature_config = [
     ("Age", "年龄", "number", 55, 20, 90),
@@ -112,39 +112,53 @@ with col_left:
         key="input_mode"
     )
 
-    # === 单例输入：必须使用 form + form_submit_button ===
+    # === 单例输入：必须有 form + submit button ===
     if input_method == "单例输入 / Single Instance":
         with st.form(key="patient_form"):
             inputs = {}
             cols = st.columns(2)
-            for i, (en, cn, typ, val, *args) in enumerate(feature_config):
+            for i, (en, cn, typ, default_val, *args) in enumerate(feature_config):
                 with cols[i % 2]:
                     label = f"**{en} / {cn}**"
                     if typ == "number":
-                        inputs[en] = st.number_input(label, value=float(val), min_value=float(args[0]), max_value=float(args[1]), step=0.1, key=f"num_{i}")
+                        min_val, max_val = args
+                        inputs[en] = st.number_input(
+                            label, value=float(default_val),
+                            min_value=float(min_val), max_value=float(max_val),
+                            step=0.1, key=f"num_{i}"
+                        )
                     elif typ == "select":
-                        opts = args[0]
-                        idx = val if val < len(opts) else 0
-                        selected = st.selectbox(label, opts, index=idx, key=f"sel_{i}")
-                        inputs[en] = selected.split("/")[0]
+                        options = args[0]
+                        # default_val 是 int 索引
+                        inputs[en] = st.selectbox(
+                            label, options, index=default_val, key=f"sel_{i}"
+                        ).split("/")[0]
                     elif typ == "slider":
-                        inputs[en] = st.slider(label, min_value=args[0], max_value=args[1], value=val, key=f"sli_{i}")
+                        min_val, max_val = args
+                        inputs[en] = st.slider(
+                            label, min_value=min_val, max_value=max_val,
+                            value=default_val, key=f"sli_{i}"
+                        )
 
-            # 关键：必须有 form_submit_button
-            submitted = st.form_submit_button("预测复发风险 / PREDICT RISK", use_container_width=True, type="primary")
+            # 必须的 submit button
+            submitted = st.form_submit_button(
+                "预测复发风险 / PREDICT RISK",
+                use_container_width=True,
+                type="primary"
+            )
 
-    # === 批量上传：独立按钮 ===
+    # === 批量上传 ===
     else:
         st.markdown("### 批量上传 CSV / Batch Upload CSV")
-        uploaded = st.file_uploader("上传患者数据文件 / Upload CSV File", type="csv", key="csv_file")
+        uploaded = st.file_uploader("上传患者数据文件", type="csv", key="csv_upload")
         if uploaded:
             df = pd.read_csv(uploaded)
             st.dataframe(df.head(), use_container_width=True)
-            if st.button("批量预测 / Run Batch Prediction", use_container_width=True, key="batch_run"):
-                st.success("批量预测完成 / Batch prediction completed")
+            if st.button("批量预测 / Run Batch Prediction", use_container_width=True, key="batch_predict"):
+                st.success("批量预测完成")
 
 # ---------------------------
-# 右侧结果区（中文曲线）
+# 右侧结果
 # ---------------------------
 with col_right:
     st.markdown("### 预测结果 / Prediction Results")
@@ -156,14 +170,13 @@ with col_right:
     x = np.linspace(0, 5, 100)
     y = 1 - np.exp(-0.18 * x)
     ax.plot(x, y, color="#1f77b4", linewidth=2.5)
-    ax.fill_between(x, y, alpha=0.1, color="#1f77b4")
+    ax.fill_between(x, y, alpha=0.1)
     ax.set_xlabel("时间 (年)")
     ax.set_ylabel("累积复发概率")
     ax.set_ylim(0, 1)
     ax.grid(True, alpha=0.3)
     st.pyplot(fig)
 
-    # 预测结果（仅在提交后显示）
     if input_method == "单例输入 / Single Instance" and submitted:
         risk_prob = np.random.uniform(0.05, 0.45)
         median_time = np.random.uniform(2.0, 4.5)
@@ -185,12 +198,16 @@ with col_right:
         st.success("预测完成")
 
 # ---------------------------
-# 侧边栏模板
+# 侧边栏
 # ---------------------------
 with st.sidebar:
     st.markdown("### CSV 模板")
-    template = {en: (val if typ != "select" else args[0][0].split("/")[0]) 
-                for en, _, typ, val, *args in feature_config}
+    template = {}
+    for en, _, typ, default_val, *args in feature_config:
+        if typ == "select":
+            template[en] = args[0][default_val].split("/")[0]
+        else:
+            template[en] = default_val
     df_temp = pd.DataFrame([template])
     buffer = io.BytesIO()
     df_temp.to_csv(buffer, index=False, encoding='utf-8-sig')
@@ -198,7 +215,7 @@ with st.sidebar:
     st.download_button("下载模板", data=buffer, file_name="template.csv", mime="text/csv")
 
 # ---------------------------
-# 底部免责
+# 底部
 # ---------------------------
 st.markdown("---")
 st.markdown("""
