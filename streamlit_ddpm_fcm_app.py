@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import io
 
 # ---------------------------
-# 页面配置 / Page Config
+# 页面配置
 # ---------------------------
 st.set_page_config(
     page_title="DDPM-FCM 乳腺癌复发风险预测系统 / Breast Cancer Recurrence Risk Prediction",
@@ -16,7 +16,7 @@ st.set_page_config(
 )
 
 # ---------------------------
-# CSS 美化 / Custom CSS
+# 美化 CSS
 # ---------------------------
 st.markdown("""
 <style>
@@ -33,14 +33,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------
-# 标题 / Header
+# 标题
 # ---------------------------
 st.markdown('<h1 class="main-header">DDPM-FCM-Fusion: Breast Cancer Recurrence Risk Prediction</h1>', unsafe_allow_html=True)
 st.markdown('<h3 class="sub-header">中国医科大学附属盛京医院 / Shengjing Hospital of China Medical University</h3>', unsafe_allow_html=True)
 st.markdown("---")
 
 # ---------------------------
-# 模型加载 / Load Models
+# 模型加载
 # ---------------------------
 @st.cache_resource
 def load_models():
@@ -51,14 +51,14 @@ def load_models():
         ddpm = torch.load("results/ddpm.pt", map_location="cpu")
         attention = torch.load("results/attention.pt", map_location="cpu")
         return scaler, svm, mlp, ddpm, attention
-    except:
-        st.warning("模型加载失败，使用模拟结果 / Model load failed, using demo results.")
+    except Exception as e:
+        st.warning(f"模型加载失败，使用模拟结果 / Model load failed: {e}")
         return None, None, None, None, None
 
 scaler, svm, mlp, ddpm, attention = load_models()
 
 # ---------------------------
-# 34 个输入变量（中英文）/ 34 Input Features
+# 34 个输入变量配置
 # ---------------------------
 feature_config = [
     ("Age", "年龄", "number", 55, 20, 90),
@@ -98,50 +98,57 @@ feature_config = [
 ]
 
 # ---------------------------
-# 主布局 / Main Layout
+# 主布局
 # ---------------------------
 col_left, col_right = st.columns([1.9, 1.1])
 
 with col_left:
     st.markdown("### 患者信息输入 / Patient Information Input")
     
-    # 输入方式切换
     input_method = st.radio(
         "选择输入方式 / Input Method:",
         ("单例输入 / Single Instance", "批量上传 CSV / Batch Upload CSV"),
         horizontal=True
     )
 
+    # === 单例输入（使用 form + submit button）===
     if input_method == "单例输入 / Single Instance":
-        with st.form("patient_form"):
+        with st.form(key="patient_form"):
             inputs = {}
             cols = st.columns(2)
             for i, (en, cn, typ, val, *args) in enumerate(feature_config):
                 with cols[i % 2]:
                     label = f"**{en} / {cn}**"
                     if typ == "number":
-                        inputs[en] = st.number_input(label, value=float(val), min_value=float(args[0]), max_value=float(args[1]), step=0.1, format="%.2f")
+                        inputs[en] = st.number_input(
+                            label, value=float(val), 
+                            min_value=float(args[0]), max_value=float(args[1]), 
+                            step=0.1, format="%.2f", key=f"input_{en}"
+                        )
                     elif typ == "select":
                         opts = args[0]
-                        idx = val if val < len(opts) else 0
-                        inputs[en] = st.selectbox(label, opts, index=idx)
+                        idx = val if isinstance(val, int) and val < len(opts) else 0
+                        inputs[en] = st.selectbox(label, opts, index=idx, key=f"select_{en}")
                     elif typ == "slider":
-                        inputs[en] = st.slider(label, min_value=val, max_value=args[0], value=val)
+                        inputs[en] = st.slider(label, min_value=args[0], max_value=args[1], value=val, key=f"slider_{en}")
                     st.markdown(f"<p class='label-en'>{en}</p>", unsafe_allow_html=True)
 
-            predict_btn = st.form_submit_button("预测复发风险 / PREDICT RISK", use_container_width=True, type="primary")
+            # 必须的 submit button
+            submitted = st.form_submit_button("预测复发风险 / PREDICT RISK", use_container_width=True, type="primary")
 
+    # === 批量上传（独立按钮）===
     else:
         st.markdown("### 批量上传 CSV / Batch Upload CSV")
-        uploaded = st.file_uploader("上传患者数据文件 / Upload CSV File", type="csv")
+        uploaded = st.file_uploader("上传患者数据文件 / Upload CSV File", type="csv", key="csv_uploader")
         if uploaded:
             df = pd.read_csv(uploaded)
             st.dataframe(df.head(), use_container_width=True)
-            if st.button("批量预测 / Run Batch Prediction", use_container_width=True):
+            if st.button("批量预测 / Run Batch Prediction", use_container_width=True, key="batch_predict"):
                 st.success("批量预测完成 / Batch prediction completed")
+                st.rerun()
 
 # ---------------------------
-# 右侧结果区 / Right Panel
+# 右侧结果区
 # ---------------------------
 with col_right:
     st.markdown("### 预测结果 / Prediction Results")
@@ -153,7 +160,7 @@ with col_right:
     st.markdown("### 风险随时间变化 / Risk Over Time")
     fig, ax = plt.subplots(figsize=(5.5, 3))
     x = np.linspace(0, 5, 100)
-    y = 1 - np.exp(-0.18 * x + 0.02 * np.random.randn(100))  # 模拟波动
+    y = 1 - np.exp(-0.18 * x + 0.02 * np.random.randn(100))
     ax.plot(x, y, color="#1f77b4", linewidth=2.5)
     ax.fill_between(x, y, alpha=0.1, color="#1f77b4")
     ax.set_xlabel("时间 (年) / Time (years)")
@@ -162,8 +169,9 @@ with col_right:
     ax.grid(True, alpha=0.3)
     st.pyplot(fig)
 
-    # 模拟预测
-    if input_method == "单例输入 / Single Instance" and predict_btn:
+    # 预测逻辑（仅在提交后触发）
+    if input_method == "单例输入 / Single Instance" and submitted:
+        # 模拟预测（可替换为真实模型）
         risk_prob = np.random.uniform(0.05, 0.45)
         median_time = np.random.uniform(2.0, 4.5)
 
@@ -184,7 +192,7 @@ with col_right:
         st.success("预测完成 / Prediction completed")
 
 # ---------------------------
-# 侧边栏：下载模板 / Sidebar Template
+# 侧边栏：模板下载
 # ---------------------------
 with st.sidebar:
     st.markdown("### CSV 模板 / CSV Template")
@@ -204,7 +212,7 @@ with st.sidebar:
     st.code("results/", language="text")
 
 # ---------------------------
-# 底部免责 / Footer
+# 底部免责
 # ---------------------------
 st.markdown("---")
 st.markdown("""
