@@ -51,14 +51,14 @@ def load_models():
         ddpm = torch.load("results/ddpm.pt", map_location="cpu")
         attention = torch.load("results/attention.pt", map_location="cpu")
         return scaler, svm, mlp, ddpm, attention
-    except:
-        st.warning("模型加载失败，使用模拟结果")
+    except Exception as e:
+        st.warning(f"模型加载失败，使用模拟结果 / Error: {e}")
         return None, None, None, None, None
 
 scaler, svm, mlp, ddpm, attention = load_models()
 
 # ---------------------------
-# 34 个输入变量（索引为 int）
+# 34 个输入变量（确保 index 是 int）
 # ---------------------------
 feature_config = [
     ("Age", "年龄", "number", 55, 20, 90),
@@ -123,21 +123,32 @@ with col_left:
                     if typ == "number":
                         min_val, max_val = args
                         inputs[en] = st.number_input(
-                            label, value=float(default_val),
-                            min_value=float(min_val), max_value=float(max_val),
-                            step=0.1, key=f"num_{i}"
+                            label,
+                            value=float(default_val),
+                            min_value=float(min_val),
+                            max_value=float(max_val),
+                            step=0.1,
+                            key=f"num_{i}"
                         )
                     elif typ == "select":
                         options = args[0]
-                        # default_val 是 int 索引
-                        inputs[en] = st.selectbox(
-                            label, options, index=default_val, key=f"sel_{i}"
-                        ).split("/")[0]
+                        # 确保 index 在范围内
+                        idx = int(default_val) if 0 <= int(default_val) < len(options) else 0
+                        selected = st.selectbox(
+                            label,
+                            options,
+                            index=idx,
+                            key=f"sel_{i}"
+                        )
+                        inputs[en] = selected.split("/")[0]  # 存英文
                     elif typ == "slider":
                         min_val, max_val = args
                         inputs[en] = st.slider(
-                            label, min_value=min_val, max_value=max_val,
-                            value=default_val, key=f"sli_{i}"
+                            label,
+                            min_value=min_val,
+                            max_value=max_val,
+                            value=default_val,
+                            key=f"sli_{i}"
                         )
 
             # 必须的 submit button
@@ -205,7 +216,9 @@ with st.sidebar:
     template = {}
     for en, _, typ, default_val, *args in feature_config:
         if typ == "select":
-            template[en] = args[0][default_val].split("/")[0]
+            options = args[0]
+            idx = int(default_val) if 0 <= int(default_val) < len(options) else 0
+            template[en] = options[idx].split("/")[0]
         else:
             template[en] = default_val
     df_temp = pd.DataFrame([template])
