@@ -5,32 +5,25 @@ import torch
 import joblib
 import matplotlib.pyplot as plt
 import io
-import matplotlib.font_manager as fm
 
 # ---------------------------
-# 解决中文显示问题 / Fix Chinese Display
+# 修复中文显示
 # ---------------------------
 plt.rcParams['font.sans-serif'] = ['SimHei', 'Arial Unicode MS', 'DejaVu Sans']
-plt.rcParams['axes.unicode_minus'] = False  # 负号正常显示
+plt.rcParams['axes.unicode_minus'] = False
 
 # ---------------------------
 # 页面配置
 # ---------------------------
-st.set_page_config(
-    page_title="DDPM-FCM 乳腺癌复发风险预测系统 / Breast Cancer Recurrence Risk Prediction",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
+st.set_page_config(page_title="DDPM-FCM 乳腺癌复发风险预测", layout="wide")
 
 # ---------------------------
 # 美化 CSS
 # ---------------------------
 st.markdown("""
 <style>
-    .main-header {font-size: 2.8rem; text-align: center; font-weight: bold; color: #1e3a8a; margin-bottom: 0.5rem;}
-    .sub-header {font-size: 1.4rem; text-align: center; color: #4b5563; margin-bottom: 1rem;}
-    .label-en {font-size: 0.85rem; color: #6b7280;}
-    .predict-btn {background-color: #1d4ed8 !important; color: white !important; font-weight: bold;}
+    .main-header {font-size: 2.8rem; text-align: center; font-weight: bold; color: #1e3a8a;}
+    .sub-header {font-size: 1.4rem; text-align: center; color: #4b5563;}
     .result-box {text-align: center; padding: 1rem; border-radius: 12px; margin: 0.5rem 0;}
     .prob-box {background: linear-gradient(135deg, #fee2e2, #fecaca); border: 2px solid #ef4444;}
     .time-box {background: linear-gradient(135deg, #dcfce7, #bbf7d0); border: 2px solid #22c55e;}
@@ -58,14 +51,14 @@ def load_models():
         ddpm = torch.load("results/ddpm.pt", map_location="cpu")
         attention = torch.load("results/attention.pt", map_location="cpu")
         return scaler, svm, mlp, ddpm, attention
-    except Exception as e:
-        st.warning(f"模型加载失败，使用模拟结果 / Model load failed: {e}")
+    except:
+        st.warning("模型加载失败，使用模拟结果")
         return None, None, None, None, None
 
 scaler, svm, mlp, ddpm, attention = load_models()
 
 # ---------------------------
-# 34 个输入变量（真实选项，非 0/1）
+# 34 个输入变量（真实选项）
 # ---------------------------
 feature_config = [
     ("Age", "年龄", "number", 55, 20, 90),
@@ -74,14 +67,14 @@ feature_config = [
     ("Parity", "生育次数", "number", 2, 0, 10),
     ("Menopausal status", "绝经状态", "select", ["Premenopausal/绝经前", "Postmenopausal/绝经后"], 1),
     ("Comorbidities", "合并症", "select", ["No/无", "Yes/有"], 1),
-    ("Presenting symptom", "首发症状", "select", ["Lump/肿块", "Pain/疼痛", "Nipple discharge/乳头溢液", "Skin change/皮肤改变"], 0),
+    ("Presenting symptom", "首发症状", "select", ["Lump/肿块", "Pain/疼痛", "Nipple discharge/乳头溢液"], 0),
     ("Surgical route", "手术路径", "select", ["Mastectomy/乳房切除术", "BCS/保乳手术"], 0),
     ("Tumor envelope integrity", "肿瘤包膜完整性", "select", ["Intact/完整", "Ruptured/破裂"], 0),
     ("Fertility-sparing surgery", "保留生育手术", "select", ["No/否", "Yes/是"], 0),
     ("Completeness of surgery", "手术彻底性", "select", ["R0/无残留", "R1/镜下残留", "R2/肉眼残留"], 0),
     ("Omentectomy", "大网膜切除", "select", ["No/否", "Yes/是"], 0),
     ("Lymphadenectomy", "淋巴结清扫", "select", ["No/否", "Yes/是"], 1),
-    ("Histological subtype", "组织学亚型", "select", ["IDC/浸润性导管癌", "ILC/浸润性小叶癌", "Mucinous/粘液癌", "Other/其他"], 0),
+    ("Histological subtype", "组织学亚型", "select", ["IDC/浸润性导管癌", "ILC/浸润性小叶癌", "Mucinous/粘液癌"], 0),
     ("Micropapillary", "微乳头状结构", "select", ["No/无", "Yes/有"], 0),
     ("Microinfiltration", "微浸润", "select", ["No/无", "Yes/有"], 0),
     ("Psammoma bodies and calcification", "砂粒体及钙化", "select", ["No/无", "Yes/有"], 0),
@@ -99,7 +92,7 @@ feature_config = [
     ("Smoking and drinking history", "吸烟饮酒史", "select", ["No/无", "Yes/有"], 0),
     ("Receive estrogens", "接受雌激素治疗", "select", ["No/否", "Yes/是"], 0),
     ("Ovulation induction", "促排卵治疗", "select", ["No/否", "Yes/是"], 0),
-    ("Postoperative adjuvant therapy", "术后辅助治疗", "select", ["None/无", "Chemotherapy/化疗", "Radiotherapy/放疗", "Hormone therapy/内分泌治疗", "Targeted therapy/靶向治疗"], 1),
+    ("Postoperative adjuvant therapy", "术后辅助治疗", "select", ["None/无", "Chemotherapy/化疗", "Radiotherapy/放疗", "Hormone therapy/内分泌治疗"], 1),
     ("Type of lesion", "病灶类型", "select", ["Solid/实性", "Cystic/囊性", "Mixed/混合性"], 0),
     ("Papillary area ratio", "乳头区比例 (%)", "slider", 30, 0, 100)
 ]
@@ -115,9 +108,11 @@ with col_left:
     input_method = st.radio(
         "选择输入方式 / Input Method:",
         ("单例输入 / Single Instance", "批量上传 CSV / Batch Upload CSV"),
-        horizontal=True
+        horizontal=True,
+        key="input_mode"
     )
 
+    # === 单例输入：必须使用 form + form_submit_button ===
     if input_method == "单例输入 / Single Instance":
         with st.form(key="patient_form"):
             inputs = {}
@@ -126,29 +121,26 @@ with col_left:
                 with cols[i % 2]:
                     label = f"**{en} / {cn}**"
                     if typ == "number":
-                        inputs[en] = st.number_input(
-                            label, value=float(val), 
-                            min_value=float(args[0]), max_value=float(args[1]), 
-                            step=0.1, format="%.2f", key=f"num_{en}"
-                        )
+                        inputs[en] = st.number_input(label, value=float(val), min_value=float(args[0]), max_value=float(args[1]), step=0.1, key=f"num_{i}")
                     elif typ == "select":
                         opts = args[0]
                         idx = val if val < len(opts) else 0
-                        selected = st.selectbox(label, opts, index=idx, key=f"sel_{en}")
-                        inputs[en] = selected.split("/")[0]  # 存英文
+                        selected = st.selectbox(label, opts, index=idx, key=f"sel_{i}")
+                        inputs[en] = selected.split("/")[0]
                     elif typ == "slider":
-                        inputs[en] = st.slider(label, min_value=args[0], max_value=args[1], value=val, key=f"sli_{en}")
-                    st.markdown(f"<p class='label-en'>{en}</p>", unsafe_allow_html=True)
+                        inputs[en] = st.slider(label, min_value=args[0], max_value=args[1], value=val, key=f"sli_{i}")
 
+            # 关键：必须有 form_submit_button
             submitted = st.form_submit_button("预测复发风险 / PREDICT RISK", use_container_width=True, type="primary")
 
+    # === 批量上传：独立按钮 ===
     else:
         st.markdown("### 批量上传 CSV / Batch Upload CSV")
-        uploaded = st.file_uploader("上传患者数据文件 / Upload CSV File", type="csv", key="csv_upload")
+        uploaded = st.file_uploader("上传患者数据文件 / Upload CSV File", type="csv", key="csv_file")
         if uploaded:
             df = pd.read_csv(uploaded)
             st.dataframe(df.head(), use_container_width=True)
-            if st.button("批量预测 / Run Batch Prediction", use_container_width=True, key="batch_btn"):
+            if st.button("批量预测 / Run Batch Prediction", use_container_width=True, key="batch_run"):
                 st.success("批量预测完成 / Batch prediction completed")
 
 # ---------------------------
@@ -156,63 +148,54 @@ with col_left:
 # ---------------------------
 with col_right:
     st.markdown("### 预测结果 / Prediction Results")
-    
-    prob_placeholder = st.empty()
-    time_placeholder = st.empty()
+    prob_box = st.empty()
+    time_box = st.empty()
 
     st.markdown("### 风险随时间变化 / Risk Over Time")
     fig, ax = plt.subplots(figsize=(5.5, 3))
     x = np.linspace(0, 5, 100)
-    y = 1 - np.exp(-0.18 * x + 0.02 * np.random.randn(100))
-    ax.plot(x, y, color="#1f77b4", linewidth=2.5, label="复发风险曲线")
+    y = 1 - np.exp(-0.18 * x)
+    ax.plot(x, y, color="#1f77b4", linewidth=2.5)
     ax.fill_between(x, y, alpha=0.1, color="#1f77b4")
-    ax.set_xlabel("时间 (年) / Time (years)")
-    ax.set_ylabel("累积复发概率 / Cumulative Recurrence Probability")
+    ax.set_xlabel("时间 (年)")
+    ax.set_ylabel("累积复发概率")
     ax.set_ylim(0, 1)
     ax.grid(True, alpha=0.3)
-    ax.legend()
     st.pyplot(fig)
 
+    # 预测结果（仅在提交后显示）
     if input_method == "单例输入 / Single Instance" and submitted:
         risk_prob = np.random.uniform(0.05, 0.45)
         median_time = np.random.uniform(2.0, 4.5)
 
-        prob_placeholder.markdown(f"""
+        prob_box.markdown(f"""
         <div class="result-box prob-box">
             <h2 style="margin:0; color:#dc2626;">{risk_prob:.3f}</h2>
-            <p style="margin:0; font-size:0.9rem;">复发概率 / Recurrence Probability</p>
+            <p style="margin:0;">复发概率</p>
         </div>
         """, unsafe_allow_html=True)
 
-        time_placeholder.markdown(f"""
+        time_box.markdown(f"""
         <div class="result-box time-box">
             <h2 style="margin:0; color:#16a34a;">{median_time:.2f}</h2>
-            <p style="margin:0; font-size:0.9rem;">中位复发时间 (年) / Median Recurrence Time (years)</p>
+            <p style="margin:0;">中位复发时间 (年)</p>
         </div>
         """, unsafe_allow_html=True)
 
-        st.success("预测完成 / Prediction completed")
+        st.success("预测完成")
 
 # ---------------------------
-# 侧边栏：下载模板
+# 侧边栏模板
 # ---------------------------
 with st.sidebar:
-    st.markdown("### CSV 模板 / CSV Template")
-    template_data = {en: (val if typ != "select" else args[0][0].split("/")[0]) 
-                    for en, _, typ, val, *args in feature_config}
-    df_template = pd.DataFrame([template_data])
+    st.markdown("### CSV 模板")
+    template = {en: (val if typ != "select" else args[0][0].split("/")[0]) 
+                for en, _, typ, val, *args in feature_config}
+    df_temp = pd.DataFrame([template])
     buffer = io.BytesIO()
-    df_template.to_csv(buffer, index=False, encoding='utf-8-sig')
+    df_temp.to_csv(buffer, index=False, encoding='utf-8-sig')
     buffer.seek(0)
-    st.download_button(
-        label="下载模板 / Download Template",
-        data=buffer,
-        file_name="breast_cancer_input_template.csv",
-        mime="text/csv"
-    )
-    st.markdown("---")
-    st.markdown("**模型目录 / Model Dir**")
-    st.code("results/", language="text")
+    st.download_button("下载模板", data=buffer, file_name="template.csv", mime="text/csv")
 
 # ---------------------------
 # 底部免责
@@ -220,7 +203,6 @@ with st.sidebar:
 st.markdown("---")
 st.markdown("""
 <div class="footer">
-    <strong>免责声明 / Disclaimer:</strong> 本系统仅用于科研与教学展示，<strong>不可用于临床诊断或治疗决策</strong>。<br>
-    <em>For research and educational demonstration only. Not for clinical use.</em>
+    <strong>免责声明：</strong> 本系统仅用于科研与教学展示，<strong>不可用于临床诊断</strong>。
 </div>
 """, unsafe_allow_html=True)
