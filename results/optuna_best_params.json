@@ -1,0 +1,21 @@
+{
+  "ae_best": {
+    "ae_hidden1": 256,
+    "ae_hidden2": 128,
+    "ae_latent": 32,
+    "ae_lr": 0.0009712391246366768
+  },
+  "trans_best": {
+    "trans_n_tokens": 4,
+    "trans_heads": 4,
+    "trans_ff": 64,
+    "trans_layers": 1
+  },
+  "clf_best": {
+    "svm_C": 0.4533516139515376,
+    "svm_gamma": 0.01,
+    "mlp_h1": 64,
+    "mlp_h2": 16,
+    "mlp_lr": 0.003498227300675483
+  }
+}

@@ -1,0 +1,2 @@
+trans_n_tokens,trans_heads,trans_ff,trans_layers
+4,4,64,1
