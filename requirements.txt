@@ -1,0 +1,11 @@
+streamlit>=1.18
+torch>=1.10
+scikit-learn>=1.0
+fcmeans>=1.0.0
+joblib
+matplotlib
+pandas
+numpy
+lifelines
+scikit-survival
+optuna
