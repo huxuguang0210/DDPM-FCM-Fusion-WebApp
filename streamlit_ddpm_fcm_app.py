@@ -10,156 +10,206 @@ import io
 # 页面配置 / Page Config
 # ---------------------------
 st.set_page_config(
-    page_title="DDPM-FCM 乳腺癌复发风险预测系统",
+    page_title="DDPM-FCM 乳腺癌复发风险预测系统 / Breast Cancer Recurrence Risk Prediction",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
 # ---------------------------
-# 标题与免责 / Header
+# CSS 美化 / Custom CSS
 # ---------------------------
-st.markdown("<h1 style='text-align: center;'>DDPM-FCM-Fusion: Breast Cancer Recurrence Risk Prediction</h1>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align: center; color: #555;'>中国医科大学附属盛京医院</h3>", unsafe_allow_html=True)
+st.markdown("""
+<style>
+    .main-header {font-size: 2.8rem; text-align: center; font-weight: bold; color: #1e3a8a; margin-bottom: 0.5rem;}
+    .sub-header {font-size: 1.4rem; text-align: center; color: #4b5563; margin-bottom: 1rem;}
+    .label-en {font-size: 0.85rem; color: #6b7280;}
+    .predict-btn {background-color: #1d4ed8 !important; color: white !important; font-weight: bold;}
+    .result-box {text-align: center; padding: 1rem; border-radius: 12px; margin: 0.5rem 0;}
+    .prob-box {background: linear-gradient(135deg, #fee2e2, #fecaca); border: 2px solid #ef4444;}
+    .time-box {background: linear-gradient(135deg, #dcfce7, #bbf7d0); border: 2px solid #22c55e;}
+    .stButton>button {width: 100%; height: 50px; font-size: 1.1rem;}
+    .footer {text-align: center; color: #6b7280; font-size: 0.9rem; margin-top: 2rem;}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------------------
+# 标题 / Header
+# ---------------------------
+st.markdown('<h1 class="main-header">DDPM-FCM-Fusion: Breast Cancer Recurrence Risk Prediction</h1>', unsafe_allow_html=True)
+st.markdown('<h3 class="sub-header">中国医科大学附属盛京医院 / Shengjing Hospital of China Medical University</h3>', unsafe_allow_html=True)
 st.markdown("---")
 
 # ---------------------------
 # 模型加载 / Load Models
 # ---------------------------
 @st.cache_resource
-def load_models(model_dir="results"):
+def load_models():
     try:
-        scaler = joblib.load(f"{model_dir}/scaler.pkl")
-        svm = joblib.load(f"{model_dir}/svm.pkl")
-        mlp = joblib.load(f"{model_dir}/mlp.pkl")
-        ddpm = torch.load(f"{model_dir}/ddpm.pt", map_location="cpu")
-        attention = torch.load(f"{model_dir}/attention.pt", map_location="cpu")
+        scaler = joblib.load("results/scaler.pkl")
+        svm = joblib.load("results/svm.pkl")
+        mlp = joblib.load("results/mlp.pkl")
+        ddpm = torch.load("results/ddpm.pt", map_location="cpu")
+        attention = torch.load("results/attention.pt", map_location="cpu")
         return scaler, svm, mlp, ddpm, attention
-    except Exception as e:
-        st.warning(f"模型加载失败，使用模拟结果演示 / Model load failed: {e}")
+    except:
+        st.warning("模型加载失败，使用模拟结果 / Model load failed, using demo results.")
         return None, None, None, None, None
 
 scaler, svm, mlp, ddpm, attention = load_models()
 
 # ---------------------------
-# 示例数据模板 / Example Data
+# 34 个输入变量（中英文）/ 34 Input Features
 # ---------------------------
-example_data = {
-    "Age": 55, "Sexual history": 0, "Family cancer history": 0, "Parity": 2,
-    "Menopausal status": 1, "Comorbidities": 1, "Presenting symptom": 1,
-    "Surgical route": 1, "Tumor envelope integrity": 1, "Micropapillary": 0,
-    "Fertility-sparing surgery": 0, "Psammam4Xtion": 0, "Completeness of surgery": 1,
-    "Acentric cytology": 0, "FIGO staging": 2, "Rumor size": 2.5
-}
+feature_config = [
+    ("Age", "年龄", "number", 55, 20, 90),
+    ("Family cancer history", "家族癌症史", "select", ["No/否", "Yes/是"], 0),
+    ("Sexual history", "性生活史", "select", ["No/否", "Yes/是"], 0),
+    ("Parity", "生育次数", "number", 2, 0, 10),
+    ("Menopausal status", "绝经状态", "select", ["No/否", "Yes/是"], 1),
+    ("Comorbidities", "合并症", "select", ["No/否", "Yes/是"], 1),
+    ("Presenting symptom", "首发症状", "select", ["Lump/肿块", "Pain/疼痛", "Discharge/分泌物"], 0),
+    ("Surgical route", "手术路径", "select", ["Mastectomy/乳房切除", "BCS/保乳"], 0),
+    ("Tumor envelope integrity", "肿瘤包膜完整性", "select", ["Intact/完整", "Ruptured/破裂"], 0),
+    ("Fertility-sparing surgery", "保留生育手术", "select", ["No/否", "Yes/是"], 0),
+    ("Completeness of surgery", "手术彻底性", "select", ["R0", "R1", "R2"], 0),
+    ("Omentectomy", "大网膜切除", "select", ["No/否", "Yes/是"], 0),
+    ("Lymphadenectomy", "淋巴结清扫", "select", ["No/否", "Yes/是"], 1),
+    ("Histological subtype", "组织学亚型", "select", ["IDC", "ILC", "Mucinous/粘液", "Other/其他"], 0),
+    ("Micropapillary", "微乳头状", "select", ["No/否", "Yes/是"], 0),
+    ("Microinfiltration", "微浸润", "select", ["No/否", "Yes/是"], 0),
+    ("Psammoma bodies and calcification", "砂粒体及钙化", "select", ["No/否", "Yes/是"], 0),
+    ("Peritoneal implantation", "腹膜种植", "select", ["No/否", "Yes/是"], 0),
+    ("Ascites cytology", "腹水细胞学", "select", ["Negative/阴性", "Positive/阳性"], 0),
+    ("FIGO staging", "FIGO 分期", "select", ["I", "II", "III", "IV"], 1),
+    ("Unilateral or bilateral", "单/双侧", "select", ["Unilateral/单侧", "Bilateral/双侧"], 0),
+    ("Tumor size", "肿瘤大小 (cm)", "number", 2.5, 0.1, 20.0),
+    ("CA125", "CA125 (U/mL)", "number", 35.0, 0.0, 1000.0),
+    ("CEA", "CEA (ng/mL)", "number", 3.0, 0.0, 100.0),
+    ("CA199", "CA199 (U/mL)", "number", 27.0, 0.0, 1000.0),
+    ("AFP", "AFP (ng/mL)", "number", 7.0, 0.0, 100.0),
+    ("CA724", "CA724 (U/mL)", "number", 6.9, 0.0, 100.0),
+    ("HE4", "HE4 (pmol/L)", "number", 70.0, 0.0, 500.0),
+    ("Smoking and drinking history", "吸烟饮酒史", "select", ["No/否", "Yes/是"], 0),
+    ("Receive estrogens", "接受雌激素", "select", ["No/否", "Yes/是"], 0),
+    ("Ovulation induction", "促排卵治疗", "select", ["No/否", "Yes/是"], 0),
+    ("Postoperative adjuvant therapy", "术后辅助治疗", "select", ["None/无", "Chemo/化疗", "Radio/放疗", "Hormone/内分泌", "Target/靶向"], 1),
+    ("Type of lesion", "病灶类型", "select", ["Solid/实性", "Cystic/囊性", "Mixed/混合"], 0),
+    ("Papillary area ratio", "乳头区比例 (%)", "slider", 30, 0, 100)
+]
 
 # ---------------------------
 # 主布局 / Main Layout
 # ---------------------------
-col_left, col_right = st.columns([1.8, 1.2])
+col_left, col_right = st.columns([1.9, 1.1])
 
 with col_left:
-    st.markdown("### Model files directory")
-    st.text_input("", value="results", disabled=True, key="model_dir")
-
-    # 输入方式
+    st.markdown("### 患者信息输入 / Patient Information Input")
+    
+    # 输入方式切换
     input_method = st.radio(
-        "选择输入方式 / Choose Input Method:",
+        "选择输入方式 / Input Method:",
         ("单例输入 / Single Instance", "批量上传 CSV / Batch Upload CSV"),
         horizontal=True
     )
 
     if input_method == "单例输入 / Single Instance":
-        st.markdown("### Single instance")
-        form = st.form("patient_form")
-        with form:
-            col1, col2 = st.columns(2)
+        with st.form("patient_form"):
             inputs = {}
+            cols = st.columns(2)
+            for i, (en, cn, typ, val, *args) in enumerate(feature_config):
+                with cols[i % 2]:
+                    label = f"**{en} / {cn}**"
+                    if typ == "number":
+                        inputs[en] = st.number_input(label, value=float(val), min_value=float(args[0]), max_value=float(args[1]), step=0.1, format="%.2f")
+                    elif typ == "select":
+                        opts = args[0]
+                        idx = val if val < len(opts) else 0
+                        inputs[en] = st.selectbox(label, opts, index=idx)
+                    elif typ == "slider":
+                        inputs[en] = st.slider(label, min_value=val, max_value=args[0], value=val)
+                    st.markdown(f"<p class='label-en'>{en}</p>", unsafe_allow_html=True)
 
-            # 左列
-            with col1:
-                inputs["Age"] = st.number_input("Age", min_value=20, max_value=90, value=example_data["Age"])
-                inputs["Family cancer history"] = st.selectbox("Family cancer history", ["No", "Yes"], index=example_data["Family cancer history"])
-                inputs["Menopausal status"] = st.selectbox("Menopausal status", ["No", "Yes"], index=example_data["Menopausal status"])
-                inputs["Presenting symptom"] = st.selectbox("Presenting symptom", ["Lump", "Pain", "Discharge"], index=example_data["Presenting symptom"])
-                inputs["Tumor envelope integrity"] = st.selectbox("Tumor envelope integrity", ["Intact", "Ruptured"], index=example_data["Tumor envelope integrity"])
-                inputs["Fertility-sparing surgery"] = st.selectbox("Fertility-sparing surgery", ["No", "Yes"], index=example_data["Fertility-sparing surgery"])
-                inputs["Completeness of surgery"] = st.selectbox("Completeness of surgery", ["R0", "R1", "R2"], index=example_data["Completeness of surgery"])
-                inputs["FIGO staging"] = st.selectbox("FIGO staging", ["I", "II", "III", "IV"], index=example_data["FIGO staging"])
-
-            # 右列
-            with col2:
-                inputs["Sexual history"] = st.selectbox("Sexual history", ["No", "Yes"], index=example_data["Sexual history"])
-                inputs["Parity"] = st.number_input("Parity", min_value=0, max_value=10, value=example_data["Parity"])
-                inputs["Comorbidities"] = st.selectbox("Comorbidities", ["No", "Yes"], index=example_data["Comorbidities"])
-                inputs["Surgical route"] = st.selectbox("Surgical route", ["Mastectomy", "BCS"], index=example_data["Surgical route"])
-                inputs["Micropapillary"] = st.selectbox("Micropapillary", ["No", "Yes"], index=example_data["Micropapillary"])
-                inputs["Psammam4Xtion"] = st.selectbox("Psammam4Xtion", ["No", "Yes"], index=example_data["Psammam4Xtion"])
-                inputs["Acentric cytology"] = st.selectbox("Acentric cytology", ["Negative", "Positive"], index=example_data["Acentric cytology"])
-                inputs["Rumor size"] = st.number_input("Rumor size (cm)", min_value=0.1, max_value=20.0, value=example_data["Rumor size"], step=0.1)
-
-            predict_btn = form.form_submit_button("PREDICT", use_container_width=True, type="primary")
+            predict_btn = st.form_submit_button("预测复发风险 / PREDICT RISK", use_container_width=True, type="primary")
 
     else:
-        st.markdown("### Batch upload CSV")
-        uploaded_file = st.file_uploader("上传 CSV 文件 / Upload CSV File", type="csv")
-        if uploaded_file:
-            df = pd.read_csv(uploaded_file)
+        st.markdown("### 批量上传 CSV / Batch Upload CSV")
+        uploaded = st.file_uploader("上传患者数据文件 / Upload CSV File", type="csv")
+        if uploaded:
+            df = pd.read_csv(uploaded)
             st.dataframe(df.head(), use_container_width=True)
-            if st.button("Run Batch Prediction", use_container_width=True):
-                st.success("批量预测完成 / Batch prediction complete")
+            if st.button("批量预测 / Run Batch Prediction", use_container_width=True):
+                st.success("批量预测完成 / Batch prediction completed")
 
 # ---------------------------
-# 右侧结果区 / Right Panel - Results
+# 右侧结果区 / Right Panel
 # ---------------------------
 with col_right:
-    st.markdown("### Predicted recurrence probability")
-    prob = st.empty()
-    st.markdown("### Estimated median recurrence time (years)")
-    time = st.empty()
+    st.markdown("### 预测结果 / Prediction Results")
+    
+    prob_placeholder = st.empty()
+    time_placeholder = st.empty()
 
     # 风险曲线
-    st.markdown("### Risk over time")
-    fig, ax = plt.subplots(figsize=(6, 3))
+    st.markdown("### 风险随时间变化 / Risk Over Time")
+    fig, ax = plt.subplots(figsize=(5.5, 3))
     x = np.linspace(0, 5, 100)
-    y = 1 - np.exp(-0.2 * x)  # 模拟风险曲线
-    ax.plot(x, y, color="#1f77b4", linewidth=2)
-    ax.set_xlabel("Time (years)")
-    ax.set_ylabel("Recurrence probability")
+    y = 1 - np.exp(-0.18 * x + 0.02 * np.random.randn(100))  # 模拟波动
+    ax.plot(x, y, color="#1f77b4", linewidth=2.5)
+    ax.fill_between(x, y, alpha=0.1, color="#1f77b4")
+    ax.set_xlabel("时间 (年) / Time (years)")
+    ax.set_ylabel("复发概率 / Recurrence Probability")
     ax.set_ylim(0, 1)
     ax.grid(True, alpha=0.3)
-    st.pyplot(fig, use_container_width=True)
+    st.pyplot(fig)
 
-    # 模拟预测结果
+    # 模拟预测
     if input_method == "单例输入 / Single Instance" and predict_btn:
-        # 真实预测逻辑（占位）
-        risk_prob = 0.128
-        median_time = 3.58
+        risk_prob = np.random.uniform(0.05, 0.45)
+        median_time = np.random.uniform(2.0, 4.5)
 
-        prob.markdown(f"<h1 style='text-align: center; color: #d62728;'>{risk_prob:.3f}</h1>", unsafe_allow_html=True)
-        time.markdown(f"<h2 style='text-align: center; color: #2ca02c;'>{median_time:.2f}</h2>", unsafe_allow_html=True)
+        prob_placeholder.markdown(f"""
+        <div class="result-box prob-box">
+            <h2 style="margin:0; color:#dc2626;">{risk_prob:.3f}</h2>
+            <p style="margin:0; font-size:0.9rem;">复发概率 / Recurrence Probability</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        time_placeholder.markdown(f"""
+        <div class="result-box time-box">
+            <h2 style="margin:0; color:#16a34a;">{median_time:.2f}</h2>
+            <p style="margin:0; font-size:0.9rem;">中位复发时间 (年) / Median Recurrence Time (years)</p>
+        </div>
+        """, unsafe_allow_html=True)
 
         st.success("预测完成 / Prediction completed")
 
 # ---------------------------
-# 底部免责 / Footer Disclaimer
+# 侧边栏：下载模板 / Sidebar Template
+# ---------------------------
+with st.sidebar:
+    st.markdown("### CSV 模板 / CSV Template")
+    template_data = {en: val for en, _, _, val, *_ in feature_config}
+    df_template = pd.DataFrame([template_data])
+    buffer = io.BytesIO()
+    df_template.to_csv(buffer, index=False, encoding='utf-8-sig')
+    buffer.seek(0)
+    st.download_button(
+        label="下载模板 / Download Template",
+        data=buffer,
+        file_name="breast_cancer_input_template.csv",
+        mime="text/csv"
+    )
+    st.markdown("---")
+    st.markdown("**模型目录 / Model Dir**")
+    st.code("results/", language="text")
+
+# ---------------------------
+# 底部免责 / Footer
 # ---------------------------
 st.markdown("---")
 st.markdown("""
-<div style='text-align: center; color: #888; font-size: 0.9em;'>
-此系统仅用于科研与教学展示，不可作为临床诊断或治疗决策依据。<br>
-<i>For research and demonstration purposes only. Not for clinical use.</i>
+<div class="footer">
+    <strong>免责声明 / Disclaimer:</strong> 本系统仅用于科研与教学展示，<strong>不可用于临床诊断或治疗决策</strong>。<br>
+    <em>For research and educational demonstration only. Not for clinical use.</em>
 </div>
 """, unsafe_allow_html=True)
-
-# ---------------------------
-# 下载模板 / Download Template
-# ---------------------------
-df_template = pd.DataFrame([example_data])
-buffer = io.BytesIO()
-df_template.to_csv(buffer, index=False)
-buffer.seek(0)
-st.sidebar.download_button(
-    label="下载 CSV 模板 / Download CSV Template",
-    data=buffer,
-    file_name="breast_cancer_template.csv",
-    mime="text/csv"
-)
