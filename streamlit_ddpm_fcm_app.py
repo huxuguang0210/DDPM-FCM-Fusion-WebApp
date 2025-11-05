@@ -58,7 +58,7 @@ def load_models():
 scaler, svm, mlp, ddpm, attention = load_models()
 
 # ---------------------------
-# 34 个输入变量（确保 index 是 int）
+# 34 个输入变量（统一格式）
 # ---------------------------
 feature_config = [
     ("Age", "年龄", "number", 55, 20, 90),
@@ -104,7 +104,7 @@ col_left, col_right = st.columns([1.9, 1.1])
 
 with col_left:
     st.markdown("### 患者信息输入 / Patient Information Input")
-    
+
     input_method = st.radio(
         "选择输入方式 / Input Method:",
         ("单例输入 / Single Instance", "批量上传 CSV / Batch Upload CSV"),
@@ -112,51 +112,28 @@ with col_left:
         key="input_mode"
     )
 
-    # === 单例输入：必须有 form + submit button ===
+    # === 单例输入 ===
     if input_method == "单例输入 / Single Instance":
         with st.form(key="patient_form"):
             inputs = {}
             cols = st.columns(2)
-            for i, (en, cn, typ, default_val, *args) in enumerate(feature_config):
+
+            for i, item in enumerate(feature_config):
+                en, cn, typ = item[0], item[1], item[2]
                 with cols[i % 2]:
                     label = f"**{en} / {cn}**"
                     if typ == "number":
-                        min_val, max_val = args
-                        inputs[en] = st.number_input(
-                            label,
-                            value=float(default_val),
-                            min_value=float(min_val),
-                            max_value=float(max_val),
-                            step=0.1,
-                            key=f"num_{i}"
-                        )
+                        default, min_val, max_val = float(item[3]), float(item[4]), float(item[5])
+                        inputs[en] = st.number_input(label, value=default, min_value=min_val, max_value=max_val, step=0.1, key=f"num_{i}")
                     elif typ == "select":
-                        options = args[0]
-                        # 确保 index 在范围内
-                        idx = int(default_val) if 0 <= int(default_val) < len(options) else 0
-                        selected = st.selectbox(
-                            label,
-                            options,
-                            index=idx,
-                            key=f"sel_{i}"
-                        )
-                        inputs[en] = selected.split("/")[0]  # 存英文
+                        options, idx = item[3], int(item[4]) if 0 <= int(item[4]) < len(item[3]) else 0
+                        selected = st.selectbox(label, options, index=idx, key=f"sel_{i}")
+                        inputs[en] = selected.split("/")[0]
                     elif typ == "slider":
-                        min_val, max_val = args
-                        inputs[en] = st.slider(
-                            label,
-                            min_value=min_val,
-                            max_value=max_val,
-                            value=default_val,
-                            key=f"sli_{i}"
-                        )
+                        default, min_val, max_val = item[3], item[4], item[5]
+                        inputs[en] = st.slider(label, min_value=min_val, max_value=max_val, value=default, key=f"sli_{i}")
 
-            # 必须的 submit button
-            submitted = st.form_submit_button(
-                "预测复发风险 / PREDICT RISK",
-                use_container_width=True,
-                type="primary"
-            )
+            submitted = st.form_submit_button("预测复发风险 / PREDICT RISK", use_container_width=True, type="primary")
 
     # === 批量上传 ===
     else:
@@ -188,7 +165,7 @@ with col_right:
     ax.grid(True, alpha=0.3)
     st.pyplot(fig)
 
-    if input_method == "单例输入 / Single Instance" and submitted:
+    if input_method == "单例输入 / Single Instance" and 'submitted' in locals() and submitted:
         risk_prob = np.random.uniform(0.05, 0.45)
         median_time = np.random.uniform(2.0, 4.5)
 
@@ -209,18 +186,20 @@ with col_right:
         st.success("预测完成")
 
 # ---------------------------
-# 侧边栏
+# 侧边栏模板下载
 # ---------------------------
 with st.sidebar:
     st.markdown("### CSV 模板")
     template = {}
-    for en, _, typ, default_val, *args in feature_config:
+    for en, cn, typ, *rest in feature_config:
         if typ == "select":
-            options = args[0]
-            idx = int(default_val) if 0 <= int(default_val) < len(options) else 0
+            options, idx = rest[0], rest[1] if 0 <= rest[1] < len(rest[0]) else 0
             template[en] = options[idx].split("/")[0]
-        else:
-            template[en] = default_val
+        elif typ == "number":
+            template[en] = rest[0]
+        elif typ == "slider":
+            template[en] = rest[0]
+
     df_temp = pd.DataFrame([template])
     buffer = io.BytesIO()
     df_temp.to_csv(buffer, index=False, encoding='utf-8-sig')
